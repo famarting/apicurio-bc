@@ -8,4 +8,5 @@ public interface ClusterApi {
 
     public void addPeer(String peer);
 
+    public void bradcastBlockchain();
 }

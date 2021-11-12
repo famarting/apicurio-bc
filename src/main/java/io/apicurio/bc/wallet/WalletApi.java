@@ -18,7 +18,7 @@ public class WalletApi {
 
     //pretty dumb how it works I know
     public int getBalance(BcBlock[] chain) {
-        for (int i = chain.length ; i >= 0 ; i-- ) {
+        for (int i = chain.length - 1 ; i >= 0 ; i-- ) {
             BcBlock block = chain[i];
             if (block.getMinterAddress().equals(getPublicAddress())) {
                 return block.getMinterBalance();

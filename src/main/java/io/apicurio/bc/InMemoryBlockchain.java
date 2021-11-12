@@ -5,22 +5,31 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import io.apicurio.bc.cluster.ClusterApi;
 import io.apicurio.bc.wallet.WalletApi;
 
 @ApplicationScoped
 public class InMemoryBlockchain implements BlockchainApi {
 
+    Logger logger = LoggerFactory.getLogger(getClass());
+
     @Inject
     WalletApi wallet;
+    @Inject
+    ClusterApi cluster;
 
     private List<BcBlock> chain;
 
-    public InMemoryBlockchain() {
+    @PostConstruct
+    public void init() {
         chain = new CopyOnWriteArrayList<BcBlock>();
         //start granting 100 coins to this node
         chain.add(ChainUtils.genesisBlock(100, wallet.getPublicAddress()));
@@ -45,6 +54,7 @@ public class InMemoryBlockchain implements BlockchainApi {
         BcBlock block = findBlock(newIndex, latestBlock.getHash(), data, difficulty);
 
         if (addBlockToChain(block)) {
+            cluster.bradcastBlockchain();
             return block;
         } else {
             return null;
@@ -55,7 +65,28 @@ public class InMemoryBlockchain implements BlockchainApi {
     public void replaceChain(BcBlock[] blockchain) {
 
         //replace only if the incoming chain is longer than our current chain
+        if (blockchain.length <= this.chain.size()) {
+            logger.info("not replacing chain because it's not bigger");
+            return;
+        }
+
         //validate hashes in each block
+        for (int i = 0; i < blockchain.length; i++) {
+
+            if (i != 0) {
+                if (!isValidBlock(blockchain[i], blockchain[i - 1])) {
+                    logger.info("chain contains invalid block, not replacing");
+                    return;
+                }
+            }
+
+            // process transactions? if we have?
+        }
+
+        this.chain = new CopyOnWriteArrayList<BcBlock>(blockchain);
+
+        //broadcastLatest
+        cluster.bradcastBlockchain();
 
     }
 
@@ -68,9 +99,21 @@ public class InMemoryBlockchain implements BlockchainApi {
     }
 
     private boolean isValidBlock(BcBlock block, BcBlock previousBlock) {
-        //TODO
         // verify hashes, timestamps, ... make sense
-        return false;
+
+        if (previousBlock.getIndex() + 1 != block.getIndex()) {
+            logger.info("invalid index");
+            return false;
+        } else if (!previousBlock.getHash().equals(block.getPreviousHash())) {
+            logger.info("invalid previoushash");
+            return false;
+        } else if (block.getTimestamp() <= previousBlock.getTimestamp()) {
+            logger.info("invalid timestamp");
+            return false;
+        } else if (!ChainUtils.calculateBlockHash(block).equals(block.getHash())) {
+            return false;
+        }
+        return true;
     }
 
     //this is where proof of stake is implemented
@@ -104,7 +147,9 @@ public class InMemoryBlockchain implements BlockchainApi {
 
         double balanceOverDifficulty = (Math.pow(2, 256) * balance) / difficulty;
         String stakingHash = DigestUtils.sha256Hex(previousHash + address + String.valueOf(timestamp));
-        BigInteger decimalStakingHash = new BigInteger(stakingHash);
+
+        //        BigInteger decimalStakingHash = new BigInteger(stakingHash);
+        Long decimalStakingHash = Long.parseLong(stakingHash, 16);
 //        const decimalStakingHash = new BigNumber(stakingHash, 16);
 
 //        const difference = balanceOverDifficulty.minus(decimalStakingHash).toNumber();

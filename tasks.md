@@ -1,6 +1,8 @@
 ## Simple Proof of stake blockchain
 
 https://naivecoinstake.learn.uno/
+another tutorial https://medium.com/coinmonks/implementing-proof-of-stake-e26fa5fb8716
+https://github.com/yjjnls/awesome-blockchain
 
 01. Minimal working blockchain
 - Define block and blockchain
